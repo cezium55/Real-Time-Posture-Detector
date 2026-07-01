@@ -1,4 +1,4 @@
-# 🧘‍♂️ Real-Time Posture Analytics Platform
+# Real-Time Posture Analytics Platform
 
 A full-stack telemetry and visualization platform designed to monitor posture health, log session-level metrics, and stream real-time analytics using a highly concurrent WebSocket architecture.
 
@@ -9,7 +9,7 @@ A full-stack telemetry and visualization platform designed to monitor posture he
 
 ---
 
-## 🏗️ System Architecture
+## System Architecture
 
 This project is built with a decoupled architecture, separating the heavy data-processing backend from the client-facing UI to ensure maximum performance and zero blocking during real-time inference.
 
@@ -20,7 +20,7 @@ This project is built with a decoupled architecture, separating the heavy data-p
 
 ---
 
-## 🚀 Core Features
+## Core Features
 
 * **Asynchronous Telemetry Streaming:** Utilizes FastAPI's native WebSocket support to stream dense computer vision data to the client without overloading traditional HTTP polling.
 * **Non-Blocking I/O:** The entire backend is built on Python's `asyncio`. Database reads/writes use Motor to yield control back to the event loop, ensuring the API remains highly responsive even during heavy traffic.
@@ -29,7 +29,7 @@ This project is built with a decoupled architecture, separating the heavy data-p
 
 ---
 
-## ⚙️ Local Development Setup
+## Local Development Setup
 
 Follow these steps to spin up the decoupled environment locally.
 
