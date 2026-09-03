@@ -1,67 +1,129 @@
-# Real-Time Posture Analytics Platform
+# Posture Detector
 
-A full-stack telemetry and visualization platform designed to monitor posture health, log session-level metrics, and stream real-time analytics using a highly concurrent WebSocket architecture.
+A real-time computer vision posture detection system built in Python using **MediaPipe, OpenCV, and NumPy**.
 
-![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
-![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)
-![Next.js](https://img.shields.io/badge/Next.js-000000?style=for-the-badge&logo=next.js&logoColor=white)
-![MongoDB](https://img.shields.io/badge/MongoDB-4EA94B?style=for-the-badge&logo=mongodb&logoColor=white)
+The detector analyzes body landmarks from a camera frame and evaluates posture using geometric measurements of the **neck, spine, shoulders, and head**. It produces a posture score along with detailed indicators explaining what is causing poor posture.
 
----
+## How It Works
 
-## System Architecture
+The system uses MediaPipe Pose to extract body landmarks from each frame.
 
-This project is built with a decoupled architecture, separating the heavy data-processing backend from the client-facing UI to ensure maximum performance and zero blocking during real-time inference.
+These landmarks are then used to calculate:
 
-* **Frontend (Client UI):** Next.js with TypeScript and Tailwind CSS. Handles the user dashboard, real-time metric visualization, and camera stream interfacing.
-* **Backend (Inference & API):** Python powered by FastAPI. Manages the computer vision posture detection logic (`posture_detector.py`) and serves the REST API.
-* **Real-Time Data Layer:** WebSockets stream the live telemetry data (posture angles, warnings, frame states) from the Python backend to the Next.js frontend with sub-millisecond latency.
-* **Database (Persistence):** MongoDB with the `Motor` asynchronous driver. Designed with a flexible NoSQL schema to rapidly ingest continuous session-level data points without locking the event loop.
+* **Forward neck position** — compares the nose position with the center of the shoulders.
+* **Spine angle** — measures the angle between the shoulder and hip centers.
+* **Shoulder lean** — detects uneven shoulder height and determines the leaning direction.
+* **Head tilt** — compares the vertical positions of the ears.
+* **Posture score** — combines the detected issues into a score from `0–100`.
 
----
+The detector also applies score smoothing to reduce sudden changes caused by noisy pose detection.
 
-## Core Features
+## Posture Analysis
 
-* **Asynchronous Telemetry Streaming:** Utilizes FastAPI's native WebSocket support to stream dense computer vision data to the client without overloading traditional HTTP polling.
-* **Non-Blocking I/O:** The entire backend is built on Python's `asyncio`. Database reads/writes use Motor to yield control back to the event loop, ensuring the API remains highly responsive even during heavy traffic.
-* **Secure Session Management:** Features robust multi-tenant authentication using PyJWT and Argon2 password hashing via `passlib`, ensuring user metric isolation.
-* **Dynamic Visualizations:** The Next.js frontend parses the WebSocket stream to render live health metrics, historical session logs, and actionable posture correction alerts.
+The detector identifies four main posture problems:
 
----
+| Check           | What it detects                                |
+| --------------- | ---------------------------------------------- |
+| Neck Forward    | Head/neck positioned too far forward           |
+| Spine Alignment | Excessive deviation of the torso from vertical |
+| Shoulder Lean   | Uneven shoulder positioning                    |
+| Head Tilt       | Excessive difference between ear positions     |
 
-## Local Development Setup
+Each frame returns structured information including the posture score, detected issues, measured angles, lean direction, and duration of poor posture.
 
-Follow these steps to spin up the decoupled environment locally.
+## Poor Posture Tracking
 
-### 1. Database Configuration
-Ensure you have MongoDB running locally or a MongoDB Atlas URI. 
-Create a `.env` file in the `posturedectbackend` directory:
+The detector does more than classify individual frames.
 
-```env
-MONGO_URI=mongodb://localhost:27017
-JWT_SECRET=your_super_secret_key
+It maintains state between frames to determine how long poor posture has continued.
+
+Features include:
+
+* **7-second grace period** to avoid immediately flagging temporary movements.
+* **30-second notification cooldown** to prevent repeated alerts.
+* Continuous tracking of bad-posture duration.
+* Smoothed posture scoring using an exponential moving average.
+
+This makes the detector more suitable for continuous monitoring rather than treating every frame as an independent prediction.
+
+## Example Output
+
+```python
+{
+    "posture_score": 72,
+    "neck_bad": False,
+    "spine_bad": False,
+    "leaning": True,
+    "leaning_direction": "RIGHT",
+    "head_tilt": False,
+    "neck_forward_x": 0.018,
+    "neck_forward_z": 0.006,
+    "spine_angle_val": 8.42,
+    "lean_angle_val": 10.31,
+    "bad_posture_duration": 0.0,
+    "should_notify": False
+}
 ```
 
-### 2. Start the Backend (FastAPI)
-Navigate to the backend directory, activate your virtual environment, install the dependencies, and boot the ASGI server.
+## Technologies
+
+* **Python**
+* **MediaPipe Pose** — body landmark detection
+* **OpenCV** — image decoding, resizing, and color conversion
+* **NumPy** — vector and geometric calculations
+
+## Project Structure
+
+```text
+Posture-Monitor-Web/
+│
+├── posture_detector.py
+├── requirements.txt
+└── README.md
+```
+
+The core implementation is contained in `posture_detector.py`, making the detector reusable independently of any specific web framework or frontend.
+
+## Running the Detector
+
+Clone the repository and install the dependencies:
 
 ```bash
-cd posturedectbackend
-python -m venv .venv
-source .venv/bin/activate  # On Windows use: .venv\Scripts\activate
+git clone https://github.com/cezium55/Posture-Monitor-Web.git
+cd Posture-Monitor-Web
+
 pip install -r requirements.txt
-uvicorn main:app --reload
 ```
 
-### 3. Start the Frontend (Next.js)
-Open a new terminal window, navigate to the frontend directory, install the node modules, and start the development server.
+The detector can then be imported and used from another Python application:
 
-```bash
-cd posturedectfrontend
-npm install
-npm run dev
+```python
+from posture_detector import PostureDetector
+
+detector = PostureDetector()
+
+result = detector.analyze_frame(base64_jpeg)
+
+if result:
+    print(result["posture_score"])
 ```
 
-### 4. Access the Application
-* **Client UI:** `http://localhost:3000`
-* **API Documentation (Swagger UI):** `http://localhost:8000/docs`
+`analyze_frame()` accepts a Base64-encoded JPEG frame, processes it through MediaPipe Pose, and returns the posture analysis result.
+
+## Design Focus
+
+The project focuses on implementing the posture analysis logic rather than relying on a pre-trained posture classification model.
+
+The main goal was to build the detection pipeline around **pose landmarks, geometric calculations, configurable thresholds, temporal smoothing, and state tracking**.
+
+## Limitations
+
+This is a landmark-based posture detector, so accuracy can be affected by:
+
+* Camera angle and placement
+* Poor lighting
+* Occluded body landmarks
+* Extreme body positions
+* Partial visibility of the upper body
+
+The thresholds are configurable and can be adjusted depending on the camera setup and desired sensitivity.
